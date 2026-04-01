@@ -9,6 +9,10 @@ Work seamlessly with GitHub from the command line.
 
 **Version:** 2.85.0
 
+## Preference
+
+Clone repos via SSH (`git@github.com:...`), not HTTPS.
+
 ## Quick Start
 
 ```bash
