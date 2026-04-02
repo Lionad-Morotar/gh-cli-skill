@@ -5,7 +5,7 @@ GitHub CLI (gh) comprehensive reference skill for Claude.
 ## 安装
 
 ```bash
-npx skills add Lionad-Morotar/gh-cli-skill
+npx skills add https://github.com/Lionad-Morotar/gh-cli-skill
 ```
 
 ## 使用
