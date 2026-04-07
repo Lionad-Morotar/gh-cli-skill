@@ -33,6 +33,18 @@ gh issue create --title "Bug report" --body "Details"
 gh issue list
 ```
 
+## Setup Sanity Check
+
+Before any non-trivial `gh` command, especially when running as an AI agent, verify the environment is ready:
+
+```bash
+gh --version                                          # gh is installed
+gh auth status                                        # logged in to the right host
+gh repo view --json nameWithOwner -q .nameWithOwner   # cwd resolves to a gh-aware repo
+```
+
+If `gh auth status` fails, do not try to recover programmatically — see [Safety Rules](#safety-rules) below.
+
 ## CLI Structure
 
 ```
@@ -165,6 +177,58 @@ export GH_DEBUG=api                    # Debug API requests
 3. **Set default repo** with `gh repo set-default` to avoid `--repo` flag
 4. **Create aliases** for frequently used commands: `gh alias set co "pr checkout"`
 5. **Use `gh browse`** to quickly open repo, PR, or issue pages
+
+## Safety Rules
+
+These rules are load-bearing when this skill is used by an AI coding agent. Treat them as hard constraints, not suggestions.
+
+1. **Never run `gh auth login` from the agent.** It is interactive and will hang. Ask the user to run it themselves (e.g. `! gh auth login` in their terminal). The same applies to `gh auth refresh`, `gh auth setup-git`, and any flow that opens a browser.
+2. **Never force-push to the default branch** (`main` / `master`). Confirm with the user before any destructive operation: `gh pr merge --rebase`, `gh repo delete`, `gh release delete`, `gh issue delete`, `gh pr close --delete-branch` against shared branches.
+3. **Prefer `gh pr create --draft`** when the change is not ready for review, so reviewers are not pinged prematurely.
+4. **`--delete-branch` deletes the remote branch too.** Confirm with the user when merging if the branch may have other consumers (CI, deployments, downstream forks).
+5. **For automation scripts, prefer `gh api` over scraping `gh` text output.** The text output format is not stable across versions; the JSON API is. Combine with `--jq` for server-side filtering.
+6. **Verify `gh auth status` before any destructive command.** A misconfigured account (wrong host, expired token, wrong user) can apply changes to the wrong repository.
+
+## Heredoc Bodies for Multi-line Text
+
+Long PR/issue bodies are awkward to escape inline. Use a heredoc to preserve formatting and avoid quoting issues — this is the most reliable cross-shell pattern:
+
+```bash
+gh pr create --title "feat: add dark mode" --body "$(cat <<'EOF'
+## Summary
+- Adds a system-aware dark mode toggle
+- Persists user preference in localStorage
+
+## Test plan
+- [ ] Toggle dark/light from the header
+- [ ] Reload page, preference is retained
+- [ ] System theme change updates the UI when no preference is set
+
+## Screenshots
+Before: ...
+After: ...
+EOF
+)"
+```
+
+The single-quoted heredoc delimiter (`<<'EOF'`) prevents shell variable expansion inside the body, which matters for snippets containing `$variables` or backticks.
+
+## PR Comments via the API
+
+`gh pr view --comments` only shows the conversation thread. To inspect inline review comments (the ones attached to specific lines of a diff), or to script comment processing, hit the API directly:
+
+```bash
+gh api repos/OWNER/REPO/pulls/123/comments        # inline review comments
+gh api repos/OWNER/REPO/issues/123/comments       # conversation comments (PRs are issues)
+gh api repos/OWNER/REPO/pulls/123/reviews         # review summaries (approve/request-changes)
+```
+
+The two endpoints return different shapes — `pulls/{n}/comments` includes `path`, `line`, `commit_id`, while `issues/{n}/comments` is just markdown bodies. Combine with `--jq` for filtering:
+
+```bash
+gh api repos/OWNER/REPO/pulls/123/comments \
+  --jq '.[] | {path, line, user: .user.login, body}'
+```
 
 ## Getting Help
 
